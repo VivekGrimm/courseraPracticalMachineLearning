@@ -1,0 +1,65 @@
+---
+title: "practical machine learning project"
+output: html_document
+---
+
+
+Loading dataset
+```{r results='hide'}
+library(caret)
+library(dplyr)
+library(ggplot2)
+library(randomForest)
+train = read.csv("pml-training.csv")
+inTrain <- createDataPartition(y=train$classe, p=0.7, list=FALSE)
+training <- train[inTrain,]
+testing <- train[-inTrain,]
+```
+
+Cleaning data set NAs
+```{r results='hide'}
+trainingNoNa = training[ , colSums(is.na(training)) == 0]
+summary(trainingNoNa)
+```
+After looking at the data, there are still a lot of incorrect/missing values of the form '#DIV/0'. Let's remove those
+```{r results='hide'}
+trainingNoNaNoDiv0 = trainingNoNa[ , !sapply(trainingNoNa, function(x)any('#DIV/0!' %in% x))]
+```
+Now looking at what we have left:
+```{r results='hide'}
+head(trainingNoNaNoDiv0)
+summary(trainingNoNaNoDiv0)
+plot(trainingNoNaNoDiv0$X, trainingNoNaNoDiv0$classe)
+```
+X seems to be the rownumber. and the data seems sorted so it would expains 100% of the model. So I remove it.
+I also removed timestamps columns that don't make sense in explaining the classe.
+I also removed "new_window": that is later on, after training the model the looking a variable importances, this one seemed to have a very low impact so I decided to remove it here and retrain the model.
+```{r results='hide'}
+trainingClean = trainingNoNaNoDiv0 %>% select(-c(X, raw_timestamp_part_1, raw_timestamp_part_2, cvtd_timestamp))
+
+trainingClean2 = trainingClean %>% select(-c(new_window))
+
+summary(trainingClean)
+```
+
+Now the data looks nice.
+I ran a random forest with the randomforest function (caret's train function never finished).
+```{r results='hide'}
+set.seed(345)
+modFit2 = randomForest(classe ~ ., data = trainingClean2, importance = TRUE)
+varImp(modFit2)
+```
+```{r}
+modFit2
+```
+So we got 500 trees with split using 7 variables and a very low error rate (0.28%).
+
+Now let's see our out of sample error.
+```{r}
+preds <- predict(modFit2, newdata=testing)
+confusionMatrix(testing$classe, preds)
+```
+So we get an accuracy of 99.71% which means our model generalised well.
+The estimate of the out of sample error is therefore 0.29%
+
+Now the first part is done and we need to load the test set, make predictions on it and submit.
